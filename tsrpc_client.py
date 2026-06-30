@@ -237,6 +237,37 @@ class _TSBIntersection(_TSBType):
         return bytes(buf)
 
 
+class _TSBArray(_TSBType):
+    """Array 类型: 元素列表，编码为 Varint长度 + 每个元素编码"""
+    def __init__(self, elements: list):
+        """
+        elements: [(type_tag, value), ...] 或 [_TSBType, ...]
+        type_tag 可以是 'string', 'number', 'uint', 'int', 'boolean' 或 _TSBType 实例
+        """
+        self.elements = elements
+
+    def encode(self) -> bytes:
+        buf = bytearray()
+        # 先编码元素数量
+        buf += encode_varint(len(self.elements))
+        for elem in self.elements:
+            if isinstance(elem, tuple):
+                pt, value = elem
+                if isinstance(pt, _TSBType):
+                    buf += pt.encode()
+                elif pt == 'string':
+                    buf += encode_string(value)
+                elif pt in ('enum', 'uint', 'int'):
+                    buf += encode_varint(int(value))
+                elif pt == 'number':
+                    buf += struct.pack('>d', float(value))
+                elif pt == 'boolean':
+                    buf += encode_varint(1 if value else 0)
+            elif isinstance(elem, _TSBType):
+                buf += elem.encode()
+        return bytes(buf)
+
+
 class _TSBRef(_TSBType):
     """Reference 类型: 引用另一个类型，避免重复编码"""
     def __init__(self, target: _TSBType):
